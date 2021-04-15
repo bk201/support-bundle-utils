@@ -14,7 +14,7 @@ type SupportBundleClient struct {
 	url        string
 	User       string
 	Password   string
-	Auth       bool
+	NoAuth     bool
 	OutputFile string
 	Insecure   bool
 
@@ -50,16 +50,18 @@ func (c *SupportBundleClient) Run(url string) error {
 	c.url = url
 
 	c.r = NewRESTClient(context.TODO(), c.url, c.User, c.Password, c.Insecure)
-	err := c.r.Login()
-	if err != nil {
-		return fmt.Errorf("fail to login: %s", err)
-	}
-	defer func() {
-		err = c.r.Logout()
+	if !c.NoAuth {
+		err := c.r.Login()
 		if err != nil {
-			fmt.Fprintf(os.Stderr, "fail to logout: %s\n", err)
+			return fmt.Errorf("fail to login: %s", err)
 		}
-	}()
+		defer func() {
+			err = c.r.Logout()
+			if err != nil {
+				fmt.Fprintf(os.Stderr, "fail to logout: %s\n", err)
+			}
+		}()
+	}
 
 	sbr, err := c.create()
 	if err != nil {

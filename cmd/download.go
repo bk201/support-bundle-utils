@@ -26,7 +26,7 @@ var cmdConfig = client.SupportBundleClient{}
 
 func init() {
 	rootCmd.AddCommand(downloadCmd)
-	downloadCmd.PersistentFlags().BoolVar(&cmdConfig.Auth, "auth", true, "authorize before getting the bundle")
+	downloadCmd.PersistentFlags().BoolVar(&cmdConfig.NoAuth, "noauth", false, "authorize before getting the bundle")
 	downloadCmd.PersistentFlags().StringVar(&cmdConfig.User, "user", "", "username")
 	downloadCmd.PersistentFlags().StringVar(&cmdConfig.Password, "password", "", "password")
 	downloadCmd.PersistentFlags().StringVar(&cmdConfig.OutputFile, "output", "", "output file path (default ${bundle_name}.zip)")
