@@ -40,10 +40,19 @@ type BundleError string
 
 type SupportBundleResource struct {
 	PodID              string      `json:"podID"`
+	NodeID             string      `json:"nodeID"`
 	State              BundleState `json:"state"`
 	Name               string      `json:"name"`
 	ErrorMessage       BundleError `json:"errorMessage"`
 	ProgressPercentage int         `json:"progressPercentage"`
+}
+
+func (sbr *SupportBundleResource) BackendID() string {
+	// This is just to be compatible with Longhorn support bundle
+	if sbr.PodID != "" {
+		return sbr.PodID
+	}
+	return sbr.NodeID
 }
 
 func (c *SupportBundleClient) Run(url string) error {
@@ -113,7 +122,7 @@ func (c *SupportBundleClient) wait(sbr *SupportBundleResource) error {
 	retries := 20
 	previousProgress := 0
 	for retries > 0 {
-		url := fmt.Sprintf("%s/v1/supportbundles/%s/%s", c.url, sbr.PodID, sbr.Name)
+		url := fmt.Sprintf("%s/v1/supportbundles/%s/%s", c.url, sbr.BackendID(), sbr.Name)
 		resp, err := c.r.Get(url)
 		if err != nil {
 			return err
@@ -141,6 +150,6 @@ func (c *SupportBundleClient) wait(sbr *SupportBundleResource) error {
 }
 
 func (c *SupportBundleClient) download(sbr *SupportBundleResource, path string) (string, error) {
-	url := fmt.Sprintf("%s/v1/supportbundles/%s/%s/download", c.url, sbr.PodID, sbr.Name)
+	url := fmt.Sprintf("%s/v1/supportbundles/%s/%s/download", c.url, sbr.BackendID(), sbr.Name)
 	return c.r.Download(url, path)
 }
