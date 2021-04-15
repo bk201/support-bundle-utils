@@ -21,11 +21,11 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
 
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
-ENV GO111MODULE of
+ENV GO111MODULE off
 ENV DAPPER_DOCKER_SOCKET true
 ENV HOME ${DAPPER_SOURCE}
 
-ENV DAPPER_SOURCE /go/src/github.com/harvester/support-bundle-utils/
+ENV DAPPER_SOURCE /go/src/github.com/bk201/support-bundle-utils/
 
 WORKDIR ${DAPPER_SOURCE}
 ENTRYPOINT ["./scripts/entry"]
