@@ -19,6 +19,11 @@ RUN apt-get update -qq && apt-get install -y --no-install-recommends \
         docker-ce=5:20.10.* \
     && rm -rf /var/lib/apt/lists/*
 
+## install golangci
+RUN if [ "${ARCH}" = "amd64" ]; then \
+        curl -sL https://install.goreleaser.com/github.com/golangci/golangci-lint.sh | sh -s -- -b "$(go env GOPATH)/bin" v1.27.0; \
+    fi
+
 # -- for dapper
 ENV DAPPER_RUN_ARGS --privileged --network host -v /run/containerd/containerd.sock:/run/containerd/containerd.sock
 ENV GO111MODULE off
