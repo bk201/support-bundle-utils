@@ -12,6 +12,7 @@ import (
 	"net/http"
 	"os"
 	"strings"
+	"time"
 )
 
 const (
@@ -49,7 +50,9 @@ func NewRESTClient(ctx context.Context, apiURL string, username string, password
 }
 
 func (c *RESTClient) getHTTPClient() http.Client {
-	client := http.Client{}
+	client := http.Client{
+		Timeout: 15 * time.Second,
+	}
 	if c.insecure {
 		client.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
