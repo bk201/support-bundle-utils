@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/bk201/support-bundle-utils/pkg/client/utils"
+	wait "k8s.io/apimachinery/pkg/util/wait"
 )
 
 type SupportBundleClient struct {
@@ -53,6 +54,27 @@ func (sbr *SupportBundleResource) BackendID() string {
 		return sbr.PodID
 	}
 	return sbr.NodeID
+}
+
+func (sbr *SupportBundleResource) readyCondition(r *RESTClient) wait.ConditionFunc {
+	return func() (done bool, err error) {
+		url := fmt.Sprintf("%s/v1/supportbundles/%s/%s", r.apiURL, sbr.BackendID(), sbr.Name)
+		resp, err := r.Get(url)
+		if err != nil {
+			return false, err
+		}
+		var newSbr SupportBundleResource
+		err = json.Unmarshal(resp, &newSbr)
+		if err != nil {
+			return false, err
+		}
+		if newSbr.State == BundleStateReadyForDownload {
+			utils.WriteStdout(".100\n")
+			return true, nil
+		}
+		utils.WriteStdout(".")
+		return false, nil
+	}
 }
 
 func (c *SupportBundleClient) Run(url string) error {
@@ -117,36 +139,14 @@ func (c *SupportBundleClient) create() (*SupportBundleResource, error) {
 }
 
 func (c *SupportBundleClient) wait(sbr *SupportBundleResource) error {
+	interval := 5 * time.Second
+	timeout := 2 * time.Minute
 	utils.WriteStdout("\n")
-	interval := time.Second * 5
-	retries := 20
-	previousProgress := 0
-	for retries > 0 {
-		url := fmt.Sprintf("%s/v1/supportbundles/%s/%s", c.url, sbr.BackendID(), sbr.Name)
-		resp, err := c.r.Get(url)
-		if err != nil {
-			return err
-		}
-		var newSbr SupportBundleResource
-		err = json.Unmarshal(resp, &newSbr)
-		if err != nil {
-			return err
-		}
-
-		if newSbr.State == BundleStateReadyForDownload {
-			utils.WriteStdout(".100\n")
-			return nil
-		}
-
-		utils.WriteStdout(".")
-		if previousProgress != newSbr.ProgressPercentage {
-			utils.WriteStdout(fmt.Sprintf("%d", newSbr.ProgressPercentage))
-			previousProgress = newSbr.ProgressPercentage
-		}
-		time.Sleep(interval)
-		retries--
+	err := wait.PollImmediate(interval, timeout, sbr.readyCondition(c.r))
+	if err != nil {
+		return fmt.Errorf("timeout for waiting a bundle: %s", err)
 	}
-	return fmt.Errorf("timeout for waiting a bundle")
+	return nil
 }
 
 func (c *SupportBundleClient) download(sbr *SupportBundleResource, path string) (string, error) {
