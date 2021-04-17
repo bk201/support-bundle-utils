@@ -27,7 +27,8 @@ type RESTClient struct {
 	password string
 	insecure bool
 
-	token string
+	httpClient *http.Client
+	token      string
 }
 
 type JWTAuthRequest struct {
@@ -40,36 +41,33 @@ type JWTAuthResponse struct {
 }
 
 func NewRESTClient(ctx context.Context, apiURL string, username string, password string, insecure bool) *RESTClient {
-	return &RESTClient{
-		context:  ctx,
-		apiURL:   apiURL,
-		username: username,
-		password: password,
-		insecure: insecure,
-	}
-}
-
-func (c *RESTClient) getHTTPClient() http.Client {
-	client := http.Client{
+	httpClient := http.Client{
 		Timeout: 15 * time.Second,
 	}
-	if c.insecure {
-		client.Transport = &http.Transport{
+	if insecure {
+		httpClient.Transport = &http.Transport{
 			TLSClientConfig: &tls.Config{
 				InsecureSkipVerify: true,
 			},
 		}
 	}
-	return client
+	return &RESTClient{
+		context:    ctx,
+		apiURL:     apiURL,
+		username:   username,
+		password:   password,
+		insecure:   insecure,
+		httpClient: &httpClient,
+	}
 }
 
-func (c *RESTClient) Login() error {
-	auth := JWTAuthRequest{Username: c.username, Password: c.password}
+func (r *RESTClient) Login() error {
+	auth := JWTAuthRequest{Username: r.username, Password: r.password}
 	data, err := json.Marshal(auth)
 	if err != nil {
 		return err
 	}
-	resp, err := c.Post(c.apiURL+HarvesterURLAuthLogin, data)
+	resp, err := r.Post(r.apiURL+HarvesterURLAuthLogin, data)
 	if err != nil {
 		return err
 	}
@@ -79,32 +77,31 @@ func (c *RESTClient) Login() error {
 	if err != nil {
 		return err
 	}
-	c.token = authResp.JWEToken
+	r.token = authResp.JWEToken
 	return nil
 }
 
-func (c *RESTClient) Logout() error {
-	if c.token == "" {
+func (r *RESTClient) Logout() error {
+	if r.token == "" {
 		return errors.New("not login")
 	}
-	_, err := c.Post(c.apiURL+HarvesterURLAuthLogout, nil)
+	_, err := r.Post(r.apiURL+HarvesterURLAuthLogout, nil)
 	if err != nil {
 		return err
 	}
 	return nil
 }
 
-func (c *RESTClient) Get(url string) ([]byte, error) {
-	return c.Request(http.MethodGet, url, nil)
+func (r *RESTClient) Get(url string) ([]byte, error) {
+	return r.Request(http.MethodGet, url, nil)
 }
 
-func (c *RESTClient) Post(url string, data []byte) ([]byte, error) {
-	return c.Request(http.MethodPost, url, data)
+func (r *RESTClient) Post(url string, data []byte) ([]byte, error) {
+	return r.Request(http.MethodPost, url, data)
 }
 
-func (c *RESTClient) Request(method string, url string, data []byte) ([]byte, error) {
-	client := c.getHTTPClient()
-	req, err := http.NewRequestWithContext(c.context, method, url, bytes.NewBuffer(data))
+func (r *RESTClient) Request(method string, url string, data []byte) ([]byte, error) {
+	req, err := http.NewRequestWithContext(r.context, method, url, bytes.NewBuffer(data))
 	if err != nil {
 		return nil, err
 	}
@@ -113,11 +110,11 @@ func (c *RESTClient) Request(method string, url string, data []byte) ([]byte, er
 		req.Header.Set("Content-Type", "application/json")
 	}
 
-	if c.token != "" {
-		req.Header.Set("jweToken", c.token)
+	if r.token != "" {
+		req.Header.Set("jweToken", r.token)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return nil, err
 	}
@@ -133,17 +130,16 @@ func (c *RESTClient) Request(method string, url string, data []byte) ([]byte, er
 	return respBody, nil
 }
 
-func (c *RESTClient) Download(url string, path string) (string, error) {
-	client := c.getHTTPClient()
-	req, err := http.NewRequestWithContext(c.context, http.MethodGet, url, nil)
+func (r *RESTClient) Download(url string, path string) (string, error) {
+	req, err := http.NewRequestWithContext(r.context, http.MethodGet, url, nil)
 	if err != nil {
 		return "", err
 	}
-	if c.token != "" {
-		req.Header.Set("jweToken", c.token)
+	if r.token != "" {
+		req.Header.Set("jweToken", r.token)
 	}
 
-	resp, err := client.Do(req)
+	resp, err := r.httpClient.Do(req)
 	if err != nil {
 		return "", err
 	}
@@ -154,7 +150,7 @@ func (c *RESTClient) Download(url string, path string) (string, error) {
 
 	filename := path
 	if filename == "" {
-		filename, err = c.getFilename(resp.Header.Get("Content-Disposition"))
+		filename, err = r.getFilename(resp.Header.Get("Content-Disposition"))
 		if err != nil {
 			return "", fmt.Errorf("fail to parse filename from response header: %s", err)
 		}
@@ -172,7 +168,7 @@ func (c *RESTClient) Download(url string, path string) (string, error) {
 
 // getFilename parse value of "Content-Disposition" header
 // e.g., extract "abc.zip" from "attachment; filename=abc.zip"
-func (c *RESTClient) getFilename(disposition string) (string, error) {
+func (r *RESTClient) getFilename(disposition string) (string, error) {
 	errMsg := fmt.Errorf("unexpected disposition value: %s", disposition)
 
 	if disposition == "" {
