@@ -7,7 +7,7 @@ import (
 	"os"
 	"time"
 
-	"github.com/bk201/support-bundle-utils/pkg/client/utils"
+	"github.com/bk201/support-bundle-utils/pkg/utils"
 	wait "k8s.io/apimachinery/pkg/util/wait"
 )
 
