@@ -11,8 +11,9 @@ import (
 	"io/ioutil"
 	"net/http"
 	"os"
-	"strings"
 	"time"
+
+	"github.com/bk201/support-bundle-utils/pkg/utils"
 )
 
 const (
@@ -145,12 +146,17 @@ func (r *RESTClient) Download(url string, path string) (string, error) {
 	}
 	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
-		return "", fmt.Errorf("unexpected status: %s", resp.Status)
+		errMsg := fmt.Sprintf("unexpected status: %s", resp.Status)
+		body, err := ioutil.ReadAll(resp.Body)
+		if err == nil {
+			errMsg = fmt.Sprintf("%s: %s", errMsg, body)
+		}
+		return "", errors.New(errMsg)
 	}
 
 	filename := path
 	if filename == "" {
-		filename, err = r.getFilename(resp.Header.Get("Content-Disposition"))
+		filename, err = utils.HttpGetDispositionFilename(resp.Header.Get("Content-Disposition"))
 		if err != nil {
 			return "", fmt.Errorf("fail to parse filename from response header: %s", err)
 		}
@@ -164,32 +170,4 @@ func (r *RESTClient) Download(url string, path string) (string, error) {
 
 	_, err = io.Copy(f, resp.Body)
 	return filename, err
-}
-
-// getFilename parse value of "Content-Disposition" header
-// e.g., extract "abc.zip" from "attachment; filename=abc.zip"
-func (r *RESTClient) getFilename(disposition string) (string, error) {
-	errMsg := fmt.Errorf("unexpected disposition value: %s", disposition)
-
-	if disposition == "" {
-		return "", errMsg
-	}
-
-	var attachement bool
-	var filename string
-
-	for _, param := range strings.Split(disposition, ";") {
-		p := strings.TrimSpace(param)
-		if p == "attachment" {
-			attachement = true
-		}
-
-		if strings.HasPrefix(p, "filename=") {
-			filename = strings.Trim(strings.SplitN(p, "filename=", 2)[1], "\"")
-		}
-	}
-	if attachement && filename != "" {
-		return filename, nil
-	}
-	return "", errMsg
 }
